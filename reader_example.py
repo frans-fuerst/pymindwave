@@ -29,7 +29,7 @@ def test():
                 self._last = _now
 
     try:
-        c = mindwave.connection(device='/dev/ttyUSB1', handler=handler())
+        c = mindwave.connection(device='/dev/ttyUSB0', handler=handler())
     except mindwave.device_error as ex:
         logging.error(ex)
         raise SystemExit(-1)
