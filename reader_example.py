@@ -4,6 +4,8 @@ import mindwave
 import time
 import logging
 import zmq
+import os
+import glob
 
 
 def test():
@@ -20,18 +22,21 @@ def test():
         def on_update(self, data):
             _now = time.time()
             if _now - self._last > .1:
-                msg = ('{"raw": %.4f,'
+                msg = ('{"time": %.2f,'
+                       ' "raw": %.4f,'
                        ' "meditation": %.4f,'
                        ' "attention": %.4f}' % (
-                           data['raw'], data['meditation'], data['attention']))
+                           data['time'], data['raw'],
+                           data['meditation'], data['attention']))
                 print(msg)
                 self._socket.send_string(msg)
                 self._last = _now
 
     try:
-        c = mindwave.connection(device='/dev/ttyUSB0', handler=handler())
+        c = mindwave.connection(device='/dev/ttyUSB1', handler=handler())
     except mindwave.device_error as ex:
         logging.error(ex)
+        print(glob.glob('/dev/ttyUSB*'))
         raise SystemExit(-1)
     c.autoconnect()
     while True:

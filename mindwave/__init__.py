@@ -50,9 +50,10 @@ class connection:
         self._conn = None
         self._handler_thread = None
         self._handler = handler
-        self._current_state = { 'raw':       0,
+        self._current_state = { 'raw':        0,
                                 'meditation': 0,
-                                'attention': 0,
+                                'attention':  0,
+                                'blink':      0,
                                 }
 
         for _ in range(3):
@@ -109,7 +110,7 @@ class connection:
     def _setup_connection(self, device: str, speed: int):
         ''' todo: doc '''
         try:
-            self._conn = serial.Serial(device, speed)
+            self._conn = serial.Serial(device, speed, timeout=2)
         except serial.SerialException as ex:
             if ex.errno == 2:
                 raise device_error("there's no device '%s'" % device)
@@ -127,7 +128,7 @@ class connection:
         connection._assert_token(connection._read_byte(self._conn), _token.SYNC)
         self._handler_thread = threading.Thread(target=self._handler_thread_fn, daemon=True)
         self._handler_thread.start()
-        LOG.debug('ready')
+        LOG.info('connection initialized')
 
     def _handler_thread_fn(self):
         ''' todo: doc '''
@@ -192,6 +193,9 @@ class connection:
         elif opcode == _token.MEDITATION:
             self._update('meditation', data[0])
 
+        elif opcode == _token.BLINK:
+            self._update('blink', data[0])
+
         elif opcode == _token.STANDBY_SCAN:
             LOG.debug("STANDBY_SCAN %s", connection._to_hex(data))
         else:
@@ -207,12 +211,12 @@ class connection:
 
     def autoconnect(self):
         ''' todo: doc '''
-        LOG.debug('send auto-connect')
+        LOG.info('send auto-connect')
         self._conn.write(_token.AUTOCONNECT.value)
 
     def disconnect(self):
         ''' todo: doc '''
-        LOG.debug('send disconnect')
+        LOG.info('send disconnect')
         self._conn.write(_token.DISCONNECT.value)
 
 
