@@ -54,32 +54,41 @@ class connection:
                                 'meditation': 0,
                                 'attention':  0,
                                 'blink':      0,
+                                'status':     'unknown',
                                 }
 
         for _ in range(3):
+            LOG.warning('try to connect to %s', device)
             try:
                 self._setup_connection(device, speed)
                 break
             except wrong_token_error:
                 pass
+            LOG.warning('retry..')
 
     @staticmethod
     def _read_byte(serial_connection) -> int:
         ''' todo: doc '''
-        return ord(serial_connection.read())
+        try:
+            return ord(serial_connection.read())
+        except TypeError:
+            raise wrong_token_error('read() returned empty string')
 
     @staticmethod
     def _read(serial_connection) -> bytes:
         ''' todo: doc '''
-        _length = connection._read_byte(serial_connection)
-        _data = serial_connection.read(_length)
-        _checksum_exp = ~(sum(_data) & 0xff) & 0xff
-        _checksum = ord(serial_connection.read())
-        if not _checksum_exp == _checksum:
-            LOG.warning('checksum mismatch!')
-            for b in _data:
-                LOG.debug('  0x%x (%s)', b, connection._to_name(b))
-        return _data
+        try:
+            _length = connection._read_byte(serial_connection)
+            _data = serial_connection.read(_length)
+            _checksum_exp = ~(sum(_data) & 0xff) & 0xff
+            _checksum = connection._read_byte(serial_connection)
+            if not _checksum_exp == _checksum:
+                LOG.warning('checksum mismatch!')
+                for b in _data:
+                    LOG.debug('  0x%x (%s)', b, connection._to_name(b))
+            return _data
+        except wrong_token_error:
+            return b''
 
     @staticmethod
     def _to_name(token_value: int) -> str:
@@ -135,10 +144,17 @@ class connection:
 
         def _check_sync() -> bool:
             ''' check for two SYNC tokens '''
-            for _ in range(2):
-                if connection._read_byte(self._conn) != ord(_token.SYNC.value):
-                    return False
-            return True
+            print(">>")
+            try:
+                for _ in range(2):
+                    try:
+                        if connection._read_byte(self._conn) != ord(_token.SYNC.value):
+                            return False
+                    except wrong_token_error:
+                        return False
+                return True
+            finally:
+                print("<<")
 
         self._handler.on_setup()
 
@@ -197,9 +213,18 @@ class connection:
             self._update('blink', data[0])
 
         elif opcode == _token.STANDBY_SCAN:
-            LOG.debug("STANDBY_SCAN %s", connection._to_hex(data))
+            LOG.info("STANDBY_SCAN %s", connection._to_hex(data))
+            self._update('status', 'standby' if data[0] == 0 else 'scanning')
+
+        elif opcode == _token.HEADSET_CONNECTED:
+            LOG.info("HEADSET_CONNECTED %s", connection._to_hex(data))
+            self._update('status', 'connected')
+
         else:
             LOG.debug("%s: %s", opcode.name, connection._to_hex(data))
+
+    def get_status(self) -> str:
+        return self._current_state['status']
 
     def connect(self, headset_id: int):
         ''' todo: doc '''
