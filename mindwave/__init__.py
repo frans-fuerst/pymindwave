@@ -18,15 +18,25 @@ class checksum_mismatch(Exception):
 class wrong_token_error(Exception):
     pass
 
+class read_timeout(Exception):
+    pass
+
 class _token(enum.Enum):
-    POOR_SIGNAL          = b'\x02'
-    ATTENTION            = b'\x04'
-    MEDITATION           = b'\x05'
+    # http://developer.neurosky.com/docs/doku.php?id=thinkgear_communications_protocol
+    BATTERY_LEVEL        = b'\x01'  # 0-127
+    POOR_SIGNAL          = b'\x02'  # 0-255
+    HEART_RATE           = b'\x03'  # 0-255
+    ATTENTION            = b'\x04'  # 0-100
+    MEDITATION           = b'\x05'  # 0-100
+    RAW_WAVE             = b'\x06'  # 0-255
+    RAW_MARKER           = b'\x07'  # 0
     BLINK                = b'\x16'
     EXCODE               = b'\x55'
 
     RAW_VALUE            = b'\x80'
-    NOT_KNOWN            = b'\x83'
+    EEG_POWER            = b'\x81'
+    ASIC_EEG_POWER       = b'\x83'
+    RRINTERVAL           = b'\x86'
 
     SYNC                 = b'\xaa'
     CONNECT              = b'\xc0'
@@ -62,24 +72,30 @@ class connection:
             try:
                 self._setup_connection(device, speed)
                 break
-            except wrong_token_error:
+            except (read_timeout, wrong_token_error):
                 pass
             LOG.warning('retry..')
 
     @staticmethod
+    def _serial_read(serial_connection, length) -> int:
+        ''' todo: doc '''
+        data = serial_connection.read(length)
+        if len(data) == 0:
+            LOG.warning('serial read timeout')
+            raise read_timeout()
+        return data
+
+    @staticmethod
     def _read_byte(serial_connection) -> int:
         ''' todo: doc '''
-        try:
-            return ord(serial_connection.read())
-        except TypeError:
-            raise wrong_token_error('read() returned empty string')
+        return ord(connection._serial_read(serial_connection, 1))
 
     @staticmethod
     def _read(serial_connection) -> bytes:
         ''' todo: doc '''
         try:
             _length = connection._read_byte(serial_connection)
-            _data = serial_connection.read(_length)
+            _data = connection._serial_read(serial_connection, _length)
             _checksum_exp = ~(sum(_data) & 0xff) & 0xff
             _checksum = connection._read_byte(serial_connection)
             if not _checksum_exp == _checksum:
@@ -87,7 +103,7 @@ class connection:
                 for b in _data:
                     LOG.debug('  0x%x (%s)', b, connection._to_name(b))
             return _data
-        except wrong_token_error:
+        except read_timeout:
             return b''
 
     @staticmethod
@@ -144,17 +160,13 @@ class connection:
 
         def _check_sync() -> bool:
             ''' check for two SYNC tokens '''
-            print(">>")
-            try:
-                for _ in range(2):
-                    try:
-                        if connection._read_byte(self._conn) != ord(_token.SYNC.value):
-                            return False
-                    except wrong_token_error:
+            for _ in range(2):
+                try:
+                    if connection._read_byte(self._conn) != ord(_token.SYNC.value):
                         return False
-                return True
-            finally:
-                print("<<")
+                except read_timeout:
+                    return False
+            return True
 
         self._handler.on_setup()
 
@@ -193,7 +205,31 @@ class connection:
         self._handler.on_update(self._current_state)
 
     def _handle_opcode(self, opcode, data: bytes):
-        if opcode == _token.RAW_VALUE:
+        if opcode == _token.BATTERY_LEVEL:
+            LOG.info("BATTERY_LEVEL %d%%", 100. * data[0] / 128.)
+
+        elif opcode == _token.POOR_SIGNAL:
+            LOG.info("POOR_SIGNAL %d", len(data))
+
+        elif opcode == _token.HEART_RATE:
+            LOG.info("HEART_RATE %d", data[0])
+
+        elif opcode == _token.ATTENTION:
+            self._update('attention', data[0])
+
+        elif opcode == _token.MEDITATION:
+            self._update('meditation', data[0])
+
+        elif opcode == _token.RAW_WAVE:
+            LOG.info("RAW_WAVE %d %s", len(data), connection._to_hex(data))
+
+        elif opcode == _token.RAW_MARKER:
+            LOG.info("RAW_MARKER %d", len(data))
+
+        elif opcode == _token.BLINK:
+            self._update('blink', data[0])
+
+        elif opcode == _token.RAW_VALUE:
             if len(data) != 2:
                 return
             _raw = (data[0] << 8) + data[1]
@@ -201,27 +237,36 @@ class connection:
                 _raw -= 65536
             _raw /= 32768.
             self._update('raw', _raw)
+            LOG.debug("RAW_VALUE %d %s", len(data), connection._to_hex(data))
 
-            #LOG.debug("RAW_VALUE %s", connection._to_hex(data))
-        elif opcode == _token.ATTENTION:
-            self._update('attention', data[0])
+        elif opcode == _token.EEG_POWER:
+            pass
 
-        elif opcode == _token.MEDITATION:
-            self._update('meditation', data[0])
+        elif opcode == _token.ASIC_EEG_POWER:
+            LOG.info("ASIC_EEG_POWER %d %s",
+                     len(data), connection._to_hex(data))
 
-        elif opcode == _token.BLINK:
-            self._update('blink', data[0])
-
-        elif opcode == _token.STANDBY_SCAN:
-            LOG.info("STANDBY_SCAN %s", connection._to_hex(data))
-            self._update('status', 'standby' if data[0] == 0 else 'scanning')
+        elif opcode == _token.RRINTERVAL:
+            pass
 
         elif opcode == _token.HEADSET_CONNECTED:
             LOG.info("HEADSET_CONNECTED %s", connection._to_hex(data))
             self._update('status', 'connected')
 
+        elif opcode == _token.HEADSET_NOT_FOUND:
+            LOG.info("HEADSET_NOT_FOUND %d %s",
+                     len(data), connection._to_hex(data))
+
+        elif opcode == _token.HEADSET_DISCONNECTED:
+            LOG.info("HEADSET_NOT_FOUND %d %s",
+                     len(data), connection._to_hex(data))
+
+        elif opcode == _token.STANDBY_SCAN:
+            LOG.debug("STANDBY_SCAN %s", connection._to_hex(data))
+            self._update('status', 'standby' if data[0] == 0 else 'scanning')
+
         else:
-            LOG.debug("%s: %s", opcode.name, connection._to_hex(data))
+            LOG.warning("%s: %s", opcode.name, connection._to_hex(data))
 
     def get_status(self) -> str:
         return self._current_state['status']
