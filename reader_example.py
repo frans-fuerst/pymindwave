@@ -48,7 +48,11 @@ def test():
             self._last = _now
 
     try:
-        c = mindwave.connection(device='/dev/ttyUSB1', handler=handler())
+        devices = glob.glob('/dev/ttyUSB*')
+        if len(devices) > 0:
+            c = mindwave.connection(device=devices[0], handler=handler())
+        else:
+            raise Exception('no devices found')
     except mindwave.device_error as ex:
         logging.error(ex)
         print(glob.glob('/dev/ttyUSB*'))
