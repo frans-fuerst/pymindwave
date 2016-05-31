@@ -65,6 +65,9 @@ class connection:
                                 'attention':  0,
                                 'blink':      0,
                                 'status':     'unknown',
+                                'eeg':        {},
+                                'heart_rate': 0,
+                                'battery':    0,
                                 }
 
         for _ in range(3):
@@ -206,13 +209,16 @@ class connection:
 
     def _handle_opcode(self, opcode, data: bytes):
         if opcode == _token.BATTERY_LEVEL:
-            LOG.info("BATTERY_LEVEL %d%%", 100. * data[0] / 128.)
+            # doc sais 0-127 but I got values higher than 128
+            LOG.debug("BATTERY_LEVEL %d", data[0])
+            self._update('battery', 100. / 255. * data[0])
 
         elif opcode == _token.POOR_SIGNAL:
             LOG.info("POOR_SIGNAL %d", len(data))
 
         elif opcode == _token.HEART_RATE:
-            LOG.info("HEART_RATE %d", data[0])
+            LOG.debug("HEART_RATE %d", data[0])
+            self._update('heart_rate', data[0])
 
         elif opcode == _token.ATTENTION:
             self._update('attention', data[0])
@@ -245,6 +251,7 @@ class connection:
         elif opcode == _token.ASIC_EEG_POWER:
             LOG.info("ASIC_EEG_POWER %d %s",
                      len(data), connection._to_hex(data))
+            self._handle_eeg_data(data)
 
         elif opcode == _token.RRINTERVAL:
             pass
@@ -267,6 +274,18 @@ class connection:
 
         else:
             LOG.warning("%s: %s", opcode.name, connection._to_hex(data))
+
+    def _handle_eeg_data(self, data: bytes) -> None:
+        def chunks(l):
+            for i in range(0, len(l), 3):
+                yield l[i:i + 3]
+        def toint(bdata):
+            return (bdata[0] << 16) + (bdata[1] << 8) + bdata[2]
+
+        self._update('eeg', {k:v for k, v in zip(
+            ('delta', 'theta', 'low_alpha', 'high_alpha',
+             'low_beta', 'high_beta', 'low_gamma', 'mid_gamma'),
+            (toint(v) for v in chunks(data)))})
 
     def get_status(self) -> str:
         return self._current_state['status']

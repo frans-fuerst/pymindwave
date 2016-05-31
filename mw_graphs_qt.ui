@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>735</width>
-    <height>807</height>
+    <height>1123</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -22,13 +22,57 @@
   <widget class="QWidget" name="centralwidget">
    <layout class="QVBoxLayout" name="verticalLayout">
     <item>
-     <widget class="QwtPlot" name="plt_raw"/>
+     <widget class="QwtPlot" name="plt_raw">
+      <property name="maximumSize">
+       <size>
+        <width>16777215</width>
+        <height>200</height>
+       </size>
+      </property>
+     </widget>
     </item>
     <item>
-     <widget class="QwtPlot" name="plt_attention"/>
+     <widget class="QwtPlot" name="plt_heart_rate"/>
     </item>
     <item>
-     <widget class="QwtPlot" name="plt_meditation"/>
+     <widget class="QwtPlot" name="plt_attention">
+      <property name="maximumSize">
+       <size>
+        <width>16777215</width>
+        <height>200</height>
+       </size>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QwtPlot" name="plt_meditation">
+      <property name="maximumSize">
+       <size>
+        <width>16777215</width>
+        <height>200</height>
+       </size>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QwtPlot" name="plt_delta">
+      <property name="maximumSize">
+       <size>
+        <width>16777215</width>
+        <height>200</height>
+       </size>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QwtPlot" name="plt_theta">
+      <property name="maximumSize">
+       <size>
+        <width>16777215</width>
+        <height>200</height>
+       </size>
+      </property>
+     </widget>
     </item>
     <item>
      <widget class="QListWidget" name="lst_messages"/>

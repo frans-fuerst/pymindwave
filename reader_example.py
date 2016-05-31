@@ -34,10 +34,13 @@ def test():
             msg = ('{"time": %.2f,'
                    ' "duration": %.4f,'
                    ' "raw": %.4f,'
+                   ' "heart_rate": %.4f,'
                    ' "meditation": %.4f,'
-                   ' "attention": %.4f}' % (
-                       data['time'], _duration, data['raw'],
-                       data['meditation'], data['attention']))
+                   ' "attention": %.4f,'
+                   ' "eeg": %s}' % (
+                       data['time'], _duration, data['raw'], data['heart_rate'],
+                       data['meditation'], data['attention'],
+                       data['eeg'])).replace("'", '"')
             print(msg)
             self._socket.send_string(msg)
             self._output_file.write(msg)

@@ -78,9 +78,12 @@ class mw_graphs(QtGui.QMainWindow):
         self._idle_timer = QtCore.QTimer(self)
 
         self._graphs = {}
-        self._graphs['raw'] = graph(self.plt_raw, 'Raw data')
-        self._graphs['meditation'] = graph(self.plt_meditation, 'Meditation')
-        self._graphs['attention'] = graph(self.plt_attention, 'Attention')
+        self._graphs['raw'] = graph(self.plt_raw, 'raw data')
+        self._graphs['heart_rate'] = graph(self.plt_heart_rate, 'heart rate')
+        self._graphs['meditation'] = graph(self.plt_meditation, 'meditation')
+        self._graphs['attention'] = graph(self.plt_attention, 'attention')
+        self._graphs['delta'] = graph(self.plt_delta, 'EEG-delta')
+        self._graphs['theta'] = graph(self.plt_theta, 'EEG-theta')
 
         _thread = threading.Thread(target=self._data_listener)
         _thread.daemon = True
@@ -110,8 +113,14 @@ class mw_graphs(QtGui.QMainWindow):
     def _on_server_message(self, msg):
         print(msg)
         self._graphs['raw'].add_value(msg['raw'])
+        self._graphs['heart_rate'].add_value(msg['heart_rate'])
         self._graphs['meditation'].add_value(msg['meditation'])
         self._graphs['attention'].add_value(msg['attention'])
+        try:
+            self._graphs['delta'].add_value(msg['eeg']['delta'])
+            self._graphs['theta'].add_value(msg['eeg']['theta'])
+        except KeyError:
+            pass
 
 
 def main():
