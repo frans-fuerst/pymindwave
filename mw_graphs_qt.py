@@ -1,7 +1,8 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python2
 
 import zmq
 import sys
+import json
 import os
 import threading
 import logging
@@ -78,13 +79,14 @@ class mw_graphs(QtGui.QMainWindow):
         self._idle_timer = QtCore.QTimer(self)
 
         self._graphs = {}
-        self._graphs['raw'] = graph(self.plt_raw, 'raw data')
+        self._graphs['raw']        = graph(self.plt_raw, 'raw data')
         self._graphs['heart_rate'] = graph(self.plt_heart_rate, 'heart rate')
         self._graphs['meditation'] = graph(self.plt_meditation, 'meditation')
-        self._graphs['attention'] = graph(self.plt_attention, 'attention')
-        self._graphs['delta'] = graph(self.plt_delta, 'EEG-delta')
-        self._graphs['theta'] = graph(self.plt_theta, 'EEG-theta')
+        self._graphs['attention']  = graph(self.plt_attention, 'attention')
+        self._graphs['delta']      = graph(self.plt_delta, 'EEG-delta')
+        self._graphs['theta']      = graph(self.plt_theta, 'EEG-theta')
 
+        #self.plt_heart_rate.setVisible(False)
         _thread = threading.Thread(target=self._data_listener)
         _thread.daemon = True
         _thread.start()
@@ -93,6 +95,13 @@ class mw_graphs(QtGui.QMainWindow):
         self.show()
 
     def _data_listener(self):
+        if len(sys.argv) > 1:
+            for l in open(sys.argv[1]).readlines():
+                QtCore.QMetaObject.invokeMethod(
+                    self, "_on_server_message",
+                    QtCore.Qt.QueuedConnection,
+                    QtCore.Q_ARG(dict, json.loads(l)))
+                
         port = 9876
         context = zmq.Context()
         socket = context.socket(zmq.SUB)
@@ -111,7 +120,7 @@ class mw_graphs(QtGui.QMainWindow):
 
     @QtCore.pyqtSlot(dict)
     def _on_server_message(self, msg):
-        print(msg)
+        #print(msg)
         self._graphs['raw'].add_value(msg['raw'])
         self._graphs['heart_rate'].add_value(msg['heart_rate'])
         self._graphs['meditation'].add_value(msg['meditation'])
