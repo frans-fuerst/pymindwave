@@ -20,6 +20,7 @@ class mw_graphs(QtGui.QMainWindow):
         class graph:
             def __init__(self, plot, title):
                 self._plot = plot
+                self._plot.setMaximumHeight(100)
                 #self._plot.setCanvasBackground(Qt.black)
                 self._plot.setAxisTitle(Qwt.QwtPlot.xBottom, 'Time')
                 #self._plot.setAxisScale(Qwt.QwtPlot.xBottom, 0, 10, 1)
@@ -40,10 +41,18 @@ class mw_graphs(QtGui.QMainWindow):
                 #self._curve.setPen(pen)
                 #self._curve.setData(self._xdata, self._ydata)
 
+                scaleWidget = plot.axisWidget(Qwt.QwtPlot.yLeft)
+                #scaleWidget.setFixedWidth(200)
+                #d = scaleWidget.scaleDraw()
+                #d.minimumExtent
+                scaleWidget.scaleDraw().setMinimumExtent(100)
+
                 self._curve.attach(self._plot)
 
-            def add_value(self, value):
-                self._xdata.append(time.time())
+            def add_value(self, t, value):
+                if len(self._ydata) > 0 and self._ydata[-1] == value:
+                    return
+                self._xdata.append(t)
                 self._ydata.append(value)
                 self._curve.setData(self._xdata, self._ydata)
                 #self.plt_raw.setAxisScale(Qwt.QwtPlot.xBottom, self._xdata[0], self._xdata[-1])
@@ -80,17 +89,25 @@ class mw_graphs(QtGui.QMainWindow):
 
         self._graphs = {}
         self._graphs['raw']        = graph(self.plt_raw, 'raw data')
-        self._graphs['heart_rate'] = graph(self.plt_heart_rate, 'heart rate')
         self._graphs['meditation'] = graph(self.plt_meditation, 'meditation')
         self._graphs['attention']  = graph(self.plt_attention, 'attention')
-        self._graphs['delta']      = graph(self.plt_delta, 'EEG-delta')
-        self._graphs['theta']      = graph(self.plt_theta, 'EEG-theta')
+        self._graphs['delta']      = graph(self.plt_delta, 'delta')
+        self._graphs['theta']      = graph(self.plt_theta, 'theta')
+        self._graphs['low_alpha']  = graph(self.plt_low_alpha, 'alpha_low')
+        self._graphs['high_alpha'] = graph(self.plt_high_alpha, 'alpha_high')
+        self._graphs['low_beta']   = graph(self.plt_low_beta, 'beta_low')
+        self._graphs['high_beta']  = graph(self.plt_high_beta, 'beta_high')
+        self._graphs['low_gamma']  = graph(self.plt_low_gamma, 'gamma_low')
+        self._graphs['mid_gamma']  = graph(self.plt_high_gamma, 'gamma_mid')
+        self.plt_raw.enableAxis(Qwt.QwtPlot.xBottom, True)
+        self.plt_raw.setMaximumHeight(200)
+
+        self._t_start = time.time()
 
         #self.plt_heart_rate.setVisible(False)
         _thread = threading.Thread(target=self._data_listener)
         _thread.daemon = True
         _thread.start()
-        self.lst_messages.setVisible(False)
 
         self.show()
 
@@ -101,7 +118,7 @@ class mw_graphs(QtGui.QMainWindow):
                     self, "_on_server_message",
                     QtCore.Qt.QueuedConnection,
                     QtCore.Q_ARG(dict, json.loads(l)))
-                
+
         port = 9876
         context = zmq.Context()
         socket = context.socket(zmq.SUB)
@@ -121,13 +138,22 @@ class mw_graphs(QtGui.QMainWindow):
     @QtCore.pyqtSlot(dict)
     def _on_server_message(self, msg):
         #print(msg)
-        self._graphs['raw'].add_value(msg['raw'])
-        self._graphs['heart_rate'].add_value(msg['heart_rate'])
-        self._graphs['meditation'].add_value(msg['meditation'])
-        self._graphs['attention'].add_value(msg['attention'])
+        t = time.time() - self._t_start
+        self.lbl_battery.setText("%d" % msg['battery'])
+        self.lbl_heart_rate.setText("%d" % msg['heart_rate'])
+
+        self._graphs['raw'].add_value(t, msg['raw'])
+        self._graphs['meditation'].add_value(t, msg['meditation'])
+        self._graphs['attention'].add_value(t, msg['attention'])
         try:
-            self._graphs['delta'].add_value(msg['eeg']['delta'])
-            self._graphs['theta'].add_value(msg['eeg']['theta'])
+            self._graphs['delta'].add_value(t, msg['eeg']['delta'])
+            self._graphs['theta'].add_value(t, msg['eeg']['theta'])
+            self._graphs['low_alpha'].add_value(t, msg['eeg']['low_alpha'])
+            self._graphs['high_alpha'].add_value(t, msg['eeg']['high_alpha'])
+            self._graphs['low_beta'].add_value(t, msg['eeg']['low_beta'])
+            self._graphs['high_beta'].add_value(t, msg['eeg']['high_beta'])
+            self._graphs['low_gamma'].add_value(t, msg['eeg']['low_gamma'])
+            self._graphs['mid_gamma'].add_value(t, msg['eeg']['mid_gamma'])
         except KeyError:
             pass
 
