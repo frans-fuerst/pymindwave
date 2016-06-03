@@ -33,13 +33,15 @@ def test():
             _duration = _now - self._start
             msg = ('{"time": %.2f,'
                    ' "duration": %.4f,'
+                   ' "battery": %d,'
+                   ' "heart_rate": %d,'
                    ' "raw": %.4f,'
-                   ' "heart_rate": %.4f,'
                    ' "meditation": %.4f,'
                    ' "attention": %.4f,'
                    ' "eeg": %s}' % (
-                       data['time'], _duration, data['raw'], data['heart_rate'],
-                       data['meditation'], data['attention'],
+                       data['time'], _duration,
+                       data['battery'], data['heart_rate'],
+                       data['raw'], data['meditation'], data['attention'],
                        data['eeg'])).replace("'", '"')
             print(msg)
             self._socket.send_string(msg)
