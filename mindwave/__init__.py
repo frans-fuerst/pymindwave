@@ -80,13 +80,16 @@ class connection:
             LOG.warning('retry..')
 
     @staticmethod
-    def _serial_read(serial_connection, length) -> int:
+    def _serial_read(serial_connection, length) -> bytes:
         ''' todo: doc '''
-        data = serial_connection.read(length)
-        if len(data) == 0:
-            LOG.warning('serial read timeout')
-            raise read_timeout()
-        return data
+        if length == 0:
+            return b''
+        for i in range(3):
+            data = serial_connection.read(length)
+            if len(data) > 0:
+                return data
+            LOG.warning('timeout %d', i)
+        raise read_timeout()
 
     @staticmethod
     def _read_byte(serial_connection) -> int:
@@ -153,7 +156,7 @@ class connection:
             _conn_settings['rtscts'] = not _conn_settings['rtscts']
             self._conn.applySettingsDict(_conn_settings)
 
-        connection._assert_token(connection._read_byte(self._conn), _token.SYNC)
+#        connection._assert_token(connection._read_byte(self._conn), _token.SYNC)
         self._handler_thread = threading.Thread(target=self._handler_thread_fn, daemon=True)
         self._handler_thread.start()
         LOG.info('connection initialized')
@@ -180,7 +183,7 @@ class connection:
 
             self._handle_data(connection._read(self._conn))
 
-    def _handle_data(self, data: bytes):
+    def _handle_data(self, data: bytes) -> None:
         # LOG.debug('got data: %d [%s]', len(data), connection._to_hex(data))
         while len(data) > 0:
             try:
@@ -194,11 +197,15 @@ class connection:
                 data = data[1:]
                 continue
 
-            if ord(_opcode.value) < 0x80:
-                _extra, data = data[1:2], data[2:]
-            else:
-                _l = data[1]
-                _extra, data = data[2:2 + _l], data[2 + _l:]
+            try:
+                if ord(_opcode.value) < 0x80:
+                    _extra, data = data[1:2], data[2:]
+                else:
+                    _l = data[1]
+                    _extra, data = data[2:2 + _l], data[2 + _l:]
+            except IndexError:
+                LOG.warning("index error: %s", connection._to_hex(data))
+                return
 
             self._handle_opcode(_opcode, _extra)
 
@@ -242,6 +249,9 @@ class connection:
             if _raw >= 32768:
                 _raw -= 65536
             _raw /= 32768.
+            _raw *= 10.
+            if _raw > 1.: _raw = 1.
+            if _raw < -1.: _raw = -1.
             self._update('raw', _raw)
             LOG.debug("RAW_VALUE %d %s", len(data), connection._to_hex(data))
 
@@ -280,7 +290,7 @@ class connection:
             for i in range(0, len(l), 3):
                 yield l[i:i + 3]
         def toint(bdata):
-            return (bdata[0] << 16) + (bdata[1] << 8) + bdata[2]
+            return ((bdata[0] << 16) + (bdata[1] << 8) + bdata[2]) / 10000
 
         self._update('eeg', {k:v for k, v in zip(
             ('delta', 'theta', 'low_alpha', 'high_alpha',
